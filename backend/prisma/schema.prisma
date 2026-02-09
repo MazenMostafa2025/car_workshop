@@ -1,0 +1,531 @@
+// ============================================
+// Car Workshop - Prisma Schema
+// PostgreSQL · Integer IDs · Soft Deletes
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  MECHANIC
+  RECEPTIONIST
+}
+
+enum WorkOrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkOrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum WorkOrderServiceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PurchaseOrderStatus {
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CHECK
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ============================================
+// AUTH
+// ============================================
+
+model User {
+  id            Int      @id @default(autoincrement()) @map("user_id")
+  email         String   @unique @db.VarChar(100)
+  passwordHash  String   @map("password_hash") @db.VarChar(255)
+  role          UserRole @default(RECEPTIONIST)
+  employeeId    Int?     @unique @map("employee_id")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@map("users")
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+model Customer {
+  id             Int      @id @default(autoincrement()) @map("customer_id")
+  firstName      String   @map("first_name") @db.VarChar(50)
+  lastName       String   @map("last_name") @db.VarChar(50)
+  email          String?  @unique @db.VarChar(100)
+  phone          String   @db.VarChar(20)
+  address        String?  @db.Text
+  city           String?  @db.VarChar(50)
+  postalCode     String?  @map("postal_code") @db.VarChar(10)
+  dateRegistered DateTime @default(now()) @map("date_registered") @db.Date
+  notes          String?  @db.Text
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  vehicles     Vehicle[]
+  workOrders   WorkOrder[]
+  appointments Appointment[]
+  invoices     Invoice[]
+
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+model Vehicle {
+  id               Int      @id @default(autoincrement()) @map("vehicle_id")
+  customerId       Int      @map("customer_id")
+  make             String   @db.VarChar(50)
+  model            String   @db.VarChar(50)
+  year             Int
+  vin              String?  @unique @db.VarChar(17)
+  licensePlate     String?  @unique @map("license_plate") @db.VarChar(20)
+  color            String?  @db.VarChar(30)
+  mileage          Int?
+  engineType       String?  @map("engine_type") @db.VarChar(50)
+  transmissionType String?  @map("transmission_type") @db.VarChar(30)
+  notes            String?  @db.Text
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workOrders     WorkOrder[]
+  appointments   Appointment[]
+  serviceHistory ServiceHistory[]
+
+  @@index([licensePlate])
+  @@index([vin])
+  @@index([customerId])
+  @@map("vehicles")
+}
+
+model Employee {
+  id             Int      @id @default(autoincrement()) @map("employee_id")
+  firstName      String   @map("first_name") @db.VarChar(50)
+  lastName       String   @map("last_name") @db.VarChar(50)
+  email          String?  @unique @db.VarChar(100)
+  phone          String?  @db.VarChar(20)
+  role           String   @db.VarChar(50)
+  specialization String?  @db.VarChar(100)
+  hireDate       DateTime @map("hire_date") @db.Date
+  hourlyRate     Decimal? @map("hourly_rate") @db.Decimal(10, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user                User?
+  assignedWorkOrders  WorkOrder[]          @relation("AssignedMechanic")
+  appointments        Appointment[]
+  workOrderServices   WorkOrderService[]
+  serviceHistories    ServiceHistory[]
+
+  @@index([role])
+  @@index([isActive])
+  @@map("employees")
+}
+
+// ============================================
+// SERVICE CATALOG
+// ============================================
+
+model ServiceCategory {
+  id           Int      @id @default(autoincrement()) @map("category_id")
+  categoryName String   @map("category_name") @db.VarChar(100)
+  description  String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  services Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id                Int      @id @default(autoincrement()) @map("service_id")
+  categoryId        Int?     @map("category_id")
+  serviceName       String   @map("service_name") @db.VarChar(100)
+  description       String?  @db.Text
+  estimatedDuration Int?     @map("estimated_duration") // in minutes
+  basePrice         Decimal  @map("base_price") @db.Decimal(10, 2)
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  category          ServiceCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  workOrderServices WorkOrderService[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@map("services")
+}
+
+// ============================================
+// WORK ORDERS
+// ============================================
+
+model WorkOrder {
+  id                 Int               @id @default(autoincrement()) @map("work_order_id")
+  vehicleId          Int               @map("vehicle_id")
+  customerId         Int               @map("customer_id")
+  assignedMechanicId Int?              @map("assigned_mechanic_id")
+  orderDate          DateTime          @default(now()) @map("order_date")
+  scheduledDate      DateTime?         @map("scheduled_date")
+  completionDate     DateTime?         @map("completion_date")
+  status             WorkOrderStatus   @default(PENDING)
+  priority           WorkOrderPriority @default(NORMAL)
+  totalLaborCost     Decimal           @default(0) @map("total_labor_cost") @db.Decimal(10, 2)
+  totalPartsCost     Decimal           @default(0) @map("total_parts_cost") @db.Decimal(10, 2)
+  totalCost          Decimal           @default(0) @map("total_cost") @db.Decimal(10, 2)
+  customerComplaint  String?           @map("customer_complaint") @db.Text
+  diagnosis          String?           @db.Text
+  workPerformed      String?           @map("work_performed") @db.Text
+  recommendations    String?           @db.Text
+  mileageIn          Int?              @map("mileage_in")
+  mileageOut         Int?              @map("mileage_out")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  vehicle          Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  customer         Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedMechanic Employee?          @relation("AssignedMechanic", fields: [assignedMechanicId], references: [id], onDelete: SetNull)
+  workOrderServices WorkOrderService[]
+  workOrderParts   WorkOrderPart[]
+  invoice          Invoice?
+  serviceHistory   ServiceHistory[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([orderDate])
+  @@index([vehicleId])
+  @@index([customerId])
+  @@index([assignedMechanicId])
+  @@map("work_orders")
+}
+
+model WorkOrderService {
+  id          Int                    @id @default(autoincrement()) @map("work_order_service_id")
+  workOrderId Int                    @map("work_order_id")
+  serviceId   Int                    @map("service_id")
+  mechanicId  Int?                   @map("mechanic_id")
+  quantity    Int                    @default(1)
+  unitPrice   Decimal                @map("unit_price") @db.Decimal(10, 2)
+  laborHours  Decimal?               @map("labor_hours") @db.Decimal(5, 2)
+  totalPrice  Decimal                @map("total_price") @db.Decimal(10, 2)
+  status      WorkOrderServiceStatus @default(PENDING)
+  notes       String?                @db.Text
+  createdAt   DateTime               @default(now()) @map("created_at")
+
+  // Relations
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  service   Service   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  mechanic  Employee? @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId])
+  @@index([serviceId])
+  @@index([mechanicId])
+  @@map("work_order_services")
+}
+
+// ============================================
+// INVENTORY & SUPPLIERS
+// ============================================
+
+model Supplier {
+  id            Int      @id @default(autoincrement()) @map("supplier_id")
+  supplierName  String   @map("supplier_name") @db.VarChar(100)
+  contactPerson String?  @map("contact_person") @db.VarChar(100)
+  email         String?  @db.VarChar(100)
+  phone         String?  @db.VarChar(20)
+  address       String?  @db.Text
+  city          String?  @db.VarChar(50)
+  postalCode    String?  @map("postal_code") @db.VarChar(10)
+  paymentTerms  String?  @map("payment_terms") @db.VarChar(100)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  parts          Part[]
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model Part {
+  id              Int      @id @default(autoincrement()) @map("part_id")
+  partNumber      String   @unique @map("part_number") @db.VarChar(50)
+  partName        String   @map("part_name") @db.VarChar(100)
+  description     String?  @db.Text
+  category        String?  @db.VarChar(50)
+  manufacturer    String?  @db.VarChar(100)
+  quantityInStock Int      @default(0) @map("quantity_in_stock")
+  reorderLevel    Int      @default(5) @map("reorder_level")
+  unitCost        Decimal  @map("unit_cost") @db.Decimal(10, 2)
+  sellingPrice    Decimal  @map("selling_price") @db.Decimal(10, 2)
+  supplierId      Int?     @map("supplier_id")
+  location        String?  @db.VarChar(50)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  supplier           Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  workOrderParts     WorkOrderPart[]
+  purchaseOrderItems PurchaseOrderItem[]
+
+  @@index([partNumber])
+  @@index([supplierId])
+  @@index([category])
+  @@index([isActive])
+  @@map("parts")
+}
+
+model WorkOrderPart {
+  id          Int      @id @default(autoincrement()) @map("work_order_part_id")
+  workOrderId Int      @map("work_order_id")
+  partId      Int      @map("part_id")
+  quantity    Int
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  part      Part      @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([workOrderId])
+  @@index([partId])
+  @@map("work_order_parts")
+}
+
+// ============================================
+// PURCHASE ORDERS
+// ============================================
+
+model PurchaseOrder {
+  id                   Int                 @id @default(autoincrement()) @map("purchase_order_id")
+  supplierId           Int                 @map("supplier_id")
+  orderDate            DateTime            @map("order_date") @db.Date
+  expectedDeliveryDate DateTime?           @map("expected_delivery_date") @db.Date
+  receivedDate         DateTime?           @map("received_date") @db.Date
+  status               PurchaseOrderStatus @default(ORDERED)
+  totalAmount          Decimal?            @map("total_amount") @db.Decimal(10, 2)
+  notes                String?             @db.Text
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  supplier Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items    PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              Int      @id @default(autoincrement()) @map("purchase_order_item_id")
+  purchaseOrderId Int      @map("purchase_order_id")
+  partId          Int      @map("part_id")
+  quantityOrdered Int      @map("quantity_ordered")
+  quantityReceived Int     @default(0) @map("quantity_received")
+  unitCost        Decimal  @map("unit_cost") @db.Decimal(10, 2)
+  totalCost       Decimal  @map("total_cost") @db.Decimal(10, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  part          Part          @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@index([partId])
+  @@map("purchase_order_items")
+}
+
+// ============================================
+// INVOICES & PAYMENTS
+// ============================================
+
+model Invoice {
+  id             Int           @id @default(autoincrement()) @map("invoice_id")
+  workOrderId    Int           @unique @map("work_order_id")
+  customerId     Int           @map("customer_id")
+  invoiceNumber  String        @unique @map("invoice_number") @db.VarChar(50)
+  invoiceDate    DateTime      @map("invoice_date") @db.Date
+  dueDate        DateTime?     @map("due_date") @db.Date
+  subtotal       Decimal       @db.Decimal(10, 2)
+  taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount    Decimal       @map("total_amount") @db.Decimal(10, 2)
+  amountPaid     Decimal       @default(0) @map("amount_paid") @db.Decimal(10, 2)
+  balanceDue     Decimal       @map("balance_due") @db.Decimal(10, 2)
+  status         InvoiceStatus @default(UNPAID)
+  notes          String?       @db.Text
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  payments  Payment[]
+
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([customerId])
+  @@map("invoices")
+}
+
+model Payment {
+  id              Int           @id @default(autoincrement()) @map("payment_id")
+  invoiceId       Int           @map("invoice_id")
+  paymentDate     DateTime      @map("payment_date") @db.Date
+  amount          Decimal       @db.Decimal(10, 2)
+  paymentMethod   PaymentMethod @map("payment_method")
+  referenceNumber String?       @map("reference_number") @db.VarChar(50)
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@index([paymentMethod])
+  @@map("payments")
+}
+
+// ============================================
+// APPOINTMENTS
+// ============================================
+
+model Appointment {
+  id                 Int               @id @default(autoincrement()) @map("appointment_id")
+  customerId         Int               @map("customer_id")
+  vehicleId          Int               @map("vehicle_id")
+  appointmentDate    DateTime          @map("appointment_date")
+  duration           Int               @default(60) // in minutes
+  serviceType        String?           @map("service_type") @db.VarChar(100)
+  status             AppointmentStatus @default(SCHEDULED)
+  assignedMechanicId Int?              @map("assigned_mechanic_id")
+  notes              String?           @db.Text
+  reminderSent       Boolean           @default(false) @map("reminder_sent")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  assignedMechanic Employee? @relation(fields: [assignedMechanicId], references: [id], onDelete: SetNull)
+
+  @@index([appointmentDate])
+  @@index([status])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@index([assignedMechanicId])
+  @@map("appointments")
+}
+
+// ============================================
+// SERVICE HISTORY
+// ============================================
+
+model ServiceHistory {
+  id                Int      @id @default(autoincrement()) @map("history_id")
+  vehicleId         Int      @map("vehicle_id")
+  workOrderId       Int      @map("work_order_id")
+  serviceDate       DateTime @map("service_date") @db.Date
+  mileage           Int?
+  servicesPerformed String?  @map("services_performed") @db.Text
+  partsReplaced     String?  @map("parts_replaced") @db.Text
+  totalCost         Decimal? @map("total_cost") @db.Decimal(10, 2)
+  mechanicId        Int?     @map("mechanic_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  // Relations
+  vehicle   Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  mechanic  Employee? @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId])
+  @@index([workOrderId])
+  @@index([mechanicId])
+  @@index([serviceDate])
+  @@map("service_history")
+}
+
+// ============================================
+// EXPENSES
+// ============================================
+
+model Expense {
+  id            Int      @id @default(autoincrement()) @map("expense_id")
+  expenseDate   DateTime @map("expense_date") @db.Date
+  category      String   @db.VarChar(50)
+  description   String?  @db.Text
+  amount        Decimal  @db.Decimal(10, 2)
+  paymentMethod String?  @map("payment_method") @db.VarChar(30)
+  vendor        String?  @db.VarChar(100)
+  receiptNumber String?  @map("receipt_number") @db.VarChar(50)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([expenseDate])
+  @@index([category])
+  @@map("expenses")
+}

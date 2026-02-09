@@ -1,0 +1,174 @@
+erDiagram
+    CUSTOMERS ||--o{ VEHICLES : owns
+    CUSTOMERS ||--o{ WORK_ORDERS : requests
+    CUSTOMERS ||--o{ APPOINTMENTS : books
+    CUSTOMERS ||--o{ INVOICES : receives
+    
+    VEHICLES ||--o{ WORK_ORDERS : serviced_in
+    VEHICLES ||--o{ APPOINTMENTS : scheduled_for
+    VEHICLES ||--o{ SERVICE_HISTORY : has
+    
+    EMPLOYEES ||--o{ WORK_ORDERS : assigned_to
+    EMPLOYEES ||--o{ APPOINTMENTS : handles
+    EMPLOYEES ||--o{ WORK_ORDER_SERVICES : performs
+    
+    SERVICE_CATEGORIES ||--o{ SERVICES : contains
+    
+    SERVICES ||--o{ WORK_ORDER_SERVICES : included_in
+    
+    WORK_ORDERS ||--o{ WORK_ORDER_SERVICES : contains
+    WORK_ORDERS ||--o{ WORK_ORDER_PARTS : uses
+    WORK_ORDERS ||--|| INVOICES : generates
+    WORK_ORDERS ||--o{ SERVICE_HISTORY : creates
+    
+    SUPPLIERS ||--o{ PARTS : supplies
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : receives
+    
+    PARTS ||--o{ WORK_ORDER_PARTS : used_in
+    PARTS ||--o{ PURCHASE_ORDER_ITEMS : ordered_in
+    
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : contains
+    
+    INVOICES ||--o{ PAYMENTS : receives
+    
+    CUSTOMERS {
+        int customer_id PK
+        string first_name
+        string last_name
+        string email
+        string phone
+        string address
+        date date_registered
+    }
+    
+    VEHICLES {
+        int vehicle_id PK
+        int customer_id FK
+        string make
+        string model
+        int year
+        string vin
+        string license_plate
+        int mileage
+    }
+    
+    WORK_ORDERS {
+        int work_order_id PK
+        int vehicle_id FK
+        int customer_id FK
+        int assigned_mechanic_id FK
+        datetime order_date
+        string status
+        decimal total_cost
+        text diagnosis
+    }
+    
+    EMPLOYEES {
+        int employee_id PK
+        string first_name
+        string last_name
+        string role
+        string specialization
+        decimal hourly_rate
+    }
+    
+    SERVICES {
+        int service_id PK
+        int category_id FK
+        string service_name
+        decimal base_price
+        int estimated_duration
+    }
+    
+    SERVICE_CATEGORIES {
+        int category_id PK
+        string category_name
+        text description
+    }
+    
+    WORK_ORDER_SERVICES {
+        int work_order_service_id PK
+        int work_order_id FK
+        int service_id FK
+        int mechanic_id FK
+        decimal total_price
+        decimal labor_hours
+    }
+    
+    PARTS {
+        int part_id PK
+        int supplier_id FK
+        string part_number
+        string part_name
+        int quantity_in_stock
+        decimal unit_cost
+        decimal selling_price
+    }
+    
+    WORK_ORDER_PARTS {
+        int work_order_part_id PK
+        int work_order_id FK
+        int part_id FK
+        int quantity
+        decimal total_price
+    }
+    
+    SUPPLIERS {
+        int supplier_id PK
+        string supplier_name
+        string contact_person
+        string email
+        string phone
+    }
+    
+    PURCHASE_ORDERS {
+        int purchase_order_id PK
+        int supplier_id FK
+        date order_date
+        string status
+        decimal total_amount
+    }
+    
+    PURCHASE_ORDER_ITEMS {
+        int purchase_order_item_id PK
+        int purchase_order_id FK
+        int part_id FK
+        int quantity_ordered
+        decimal total_cost
+    }
+    
+    INVOICES {
+        int invoice_id PK
+        int work_order_id FK
+        int customer_id FK
+        string invoice_number
+        date invoice_date
+        decimal total_amount
+        string status
+    }
+    
+    PAYMENTS {
+        int payment_id PK
+        int invoice_id FK
+        date payment_date
+        decimal amount
+        string payment_method
+    }
+    
+    APPOINTMENTS {
+        int appointment_id PK
+        int customer_id FK
+        int vehicle_id FK
+        int assigned_mechanic_id FK
+        datetime appointment_date
+        string status
+    }
+    
+    SERVICE_HISTORY {
+        int history_id PK
+        int vehicle_id FK
+        int work_order_id FK
+        date service_date
+        int mileage
+        decimal total_cost
+    }
